@@ -6,6 +6,7 @@ import { BriefingResult } from "../types";
  */
 export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Используем Flash для быстрой транскрибации
   const model = 'gemini-3-flash-preview';
   
   try {
@@ -42,8 +43,11 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
  */
 export const performDeepAnalysis = async (transcription: string): Promise<Omit<BriefingResult, 'transcription'>> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  // Используем Pro модель для сложного анализа
-  const model = 'gemini-3-pro-preview';
+  
+  // ИЗМЕНЕНИЕ: Используем Flash модель вместо Pro.
+  // Pro модель имеет очень низкие лимиты (RPM) на бесплатном тарифе, что вызывает ошибку 429.
+  // Flash модель быстрая, качественная и имеет высокие лимиты.
+  const model = 'gemini-3-flash-preview';
 
   const analysisPrompt = `
     Проанализируй следующий текст транскрипции и подготовь профессиональный отчет.
@@ -66,7 +70,7 @@ export const performDeepAnalysis = async (transcription: string): Promise<Omit<B
       model,
       contents: analysisPrompt,
       config: {
-        thinkingConfig: { thinkingBudget: 2048 },
+        // Удаляем thinkingConfig для ускорения ответа и снижения нагрузки на квоты
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
