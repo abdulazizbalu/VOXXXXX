@@ -1,9 +1,8 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BriefingResult } from '../types';
 import { 
-  Clipboard, CheckCircle2, MessageSquare, ListFilter, Sparkles, Target, 
-  FileText, Printer, Copy, User, Quote, ArrowRight, LayoutDashboard, FileAudio
+  CheckCircle2, Sparkles, Target, 
+  FileText, Printer, Copy, Quote, LayoutDashboard, FileAudio
 } from 'lucide-react';
 
 interface AnalysisResultProps {
@@ -18,7 +17,7 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ data, onReset }) => {
   // Парсинг транскрипции для отображения в виде чата
   const parsedTranscript = React.useMemo(() => {
     const lines = data.transcription.split('\n').filter(line => line.trim() !== '');
-    return lines.map((line, index) => {
+    return lines.map((line) => {
       // Пытаемся найти паттерн "Спикер X:" или "Имя:"
       const match = line.match(/^((?:Спикер \d+|[^:]+)):(.*)/i);
       if (match) {
