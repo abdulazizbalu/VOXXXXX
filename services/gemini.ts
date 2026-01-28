@@ -2,14 +2,15 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { BriefingResult } from "../types";
 
 /**
- * Транскрибация аудио через Gemini (модель gemini-3-flash-preview)
+ * Транскрибация аудио через Gemini 2.0
  */
 export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
+    // Используем Gemini 2.0 Flash — быстрая и мультимодальная модель
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.0-flash-exp',
       contents: {
         parts: [
           {
@@ -37,12 +38,13 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
 };
 
 /**
- * Глубокий анализ текста через Gemini (модель gemini-3-pro-preview)
+ * Глубокий анализ текста через Gemini 2.0
  */
 export const performDeepAnalysis = async (transcription: string): Promise<Omit<BriefingResult, 'transcription'>> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  const model = 'gemini-3-pro-preview';
+  // Gemini 2.0 Flash отлично справляется с аналитикой и JSON
+  const model = 'gemini-2.0-flash-exp';
 
   const systemInstruction = `
     Ты — профессиональный бизнес-аналитик. Твоя задача — проанализировать текст встречи и выдать структурированный JSON.
