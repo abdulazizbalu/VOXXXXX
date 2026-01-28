@@ -1,49 +1,11 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { BriefingResult } from "../types";
-
-// Безопасное получение ключа с поддержкой разных сборщиков (Vite, CRA, Cloudflare)
-const getApiKey = () => {
-  let key = "";
-
-  // 1. Пробуем стандарт Vite (наиболее вероятно для этого проекта)
-  try {
-    // @ts-ignore
-    if (import.meta && import.meta.env && import.meta.env.VITE_API_KEY) {
-      // @ts-ignore
-      key = import.meta.env.VITE_API_KEY;
-    }
-  } catch (e) {}
-
-  // 2. Если не нашли, пробуем process.env (для Node.js или совместимых сборщиков)
-  if (!key) {
-    try {
-      if (typeof process !== "undefined" && process.env) {
-        key = process.env.VITE_API_KEY || process.env.API_KEY || process.env.REACT_APP_API_KEY || "";
-      }
-    } catch (e) {}
-  }
-
-  return key;
-};
-
-const API_KEY = getApiKey();
-
-// Логирование для отладки (не выводит сам ключ целиком ради безопасности)
-console.log("Voxly System Check:");
-console.log("- API Key detected:", API_KEY ? "YES (Ends with ... " + API_KEY.slice(-4) + ")" : "NO");
 
 /**
  * Транскрибация аудио
  */
 export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
-  if (!API_KEY) {
-    const errorMsg = "API Ключ не найден. Убедитесь, что в Cloudflare Settings -> Environment Variables добавлена переменная VITE_API_KEY.";
-    console.error(errorMsg);
-    throw new Error(errorMsg);
-  }
-
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = 'gemini-3-flash-preview';
   
   try {
@@ -56,29 +18,22 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
             Ты — профессиональный стенографист. Твоя задача — транскрибировать аудиофайл в текст на русском языке.
             
             ВАЖНЫЕ ИНСТРУКЦИИ:
-            1. Разделяй реплики разных людей. Используй формат: "Спикер 1: [Текст]", "Спикер 2: [Текст]".
-            2. Если спикер один, просто раздели текст на логические абзацы.
-            3. Сохраняй смысловую точность, но убирай слова-паразиты, если они не несут смысла.
-            4. Расставь знаки препинания для идеальной читаемости.
-            
-            Верни ТОЛЬКО текст транскрипции.
+            1. Верни ТОЛЬКО текст транскрипции.
+            2. Разделяй реплики, если слышишь разных людей (Спикер 1, Спикер 2).
+            3. Не добавляй никаких вступительных слов вроде "Вот транскрипция".
           ` }
         ]
       }
     });
 
     if (!response.text) {
-      throw new Error("Модель вернула пустой ответ.");
+      throw new Error("Пустой ответ от модели (возможно, аудио слишком короткое или тихое).");
     }
 
     return response.text;
   } catch (error: any) {
     console.error("Transcription Error:", error);
-    // Пробрасываем ошибку с понятным описанием
-    if (error.message && error.message.includes("API key")) {
-        throw new Error("Неверный API ключ. Проверьте правильность ключа в Cloudflare.");
-    }
-    throw new Error(error.message || "Ошибка при транскрибации");
+    throw new Error(`Ошибка транскрибации: ${error.message}`);
   }
 };
 
@@ -86,27 +41,22 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
  * Глубокий анализ текста (Резюме, Темы, Выводы, Задачи)
  */
 export const performDeepAnalysis = async (transcription: string): Promise<Omit<BriefingResult, 'transcription'>> => {
-  if (!API_KEY) throw new Error("API_KEY не найден.");
-
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Используем Pro модель для сложного анализа
   const model = 'gemini-3-pro-preview';
 
   const analysisPrompt = `
-    Проведи глубокий аналитический разбор следующего текста (транскрипции встречи или записи):
-    
+    Проанализируй этот текст:
     """
-    ${transcription}
+    ${transcription.substring(0, 50000)} 
     """
 
-    Твоя задача — структурировать информацию так, чтобы человек мог за 30 секунд понять суть и узнать, что делать дальше.
-    
-    1. **Исполнительное резюме (summary)**: 2-3 мощных предложения, описывающих суть.
-    2. **Основные темы (mainThemes)**: 3-5 тегов.
-    3. **Ключевые инсайты (keyPoints)**: Список фактов и выводов.
-    4. **Задачи (actionItems)**: Конкретные действия (что сделать).
-    5. **Тональность (sentiment)**: Оценка атмосферы.
-
-    ОТВЕТЬ СТРОГО В ФОРМАТЕ JSON.
+    Создай структурированный отчет в формате JSON:
+    1. summary: Краткое резюме (2-3 предложения).
+    2. mainThemes: 3-5 основных тем (тэги).
+    3. keyPoints: 3-5 ключевых инсайтов или фактов.
+    4. actionItems: Список конкретных задач/действий.
+    5. sentiment: Тональность разговора (одно слово/фраза).
   `;
 
   try {
@@ -114,7 +64,9 @@ export const performDeepAnalysis = async (transcription: string): Promise<Omit<B
       model,
       contents: analysisPrompt,
       config: {
-        thinkingConfig: { thinkingBudget: 16000 },
+        // Thinking config помогает для сложного анализа, но требует времени.
+        // Бюджет токенов для размышления.
+        thinkingConfig: { thinkingBudget: 2048 },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -132,12 +84,16 @@ export const performDeepAnalysis = async (transcription: string): Promise<Omit<B
 
     const parsed = JSON.parse(response.text || "{}");
     return {
-      ...parsed,
+      summary: parsed.summary || "Нет данных",
+      mainThemes: parsed.mainThemes || [],
+      keyPoints: parsed.keyPoints || [],
+      actionItems: parsed.actionItems || [],
+      sentiment: parsed.sentiment || "Нейтрально",
       emotions: [],
       emotionsData: []
     };
   } catch (error: any) {
      console.error("Analysis Error:", error);
-     throw new Error(error.message || "Ошибка при анализе текста");
+     throw new Error(`Ошибка анализа: ${error.message}`);
   }
 };
