@@ -19,8 +19,8 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
             
             ВАЖНЫЕ ИНСТРУКЦИИ:
             1. Верни ТОЛЬКО текст транскрипции.
-            2. Разделяй реплики, если слышишь разных людей (Спикер 1, Спикер 2).
-            3. Не добавляй никаких вступительных слов вроде "Вот транскрипция".
+            2. Разделяй реплики спикеров новой строкой. Если возможно, указывай "Спикер 1:", "Спикер 2:".
+            3. Игнорируй фоновые шумы и неречевые звуки.
           ` }
         ]
       }
@@ -46,17 +46,19 @@ export const performDeepAnalysis = async (transcription: string): Promise<Omit<B
   const model = 'gemini-3-pro-preview';
 
   const analysisPrompt = `
-    Проанализируй этот текст:
+    Проанализируй следующий текст транскрипции и подготовь профессиональный отчет.
+    
+    Текст для анализа:
     """
     ${transcription.substring(0, 50000)} 
     """
-
-    Создай структурированный отчет в формате JSON:
-    1. summary: Краткое резюме (2-3 предложения).
-    2. mainThemes: 3-5 основных тем (тэги).
-    3. keyPoints: 3-5 ключевых инсайтов или фактов.
-    4. actionItems: Список конкретных задач/действий.
-    5. sentiment: Тональность разговора (одно слово/фраза).
+    
+    Требования к отчету (JSON):
+    1. summary: Краткое, емкое резюме сути разговора (3-4 предложения).
+    2. mainThemes: Список из 3-6 основных тем или тегов.
+    3. keyPoints: 3-7 ключевых фактов, инсайтов или важных моментов.
+    4. actionItems: Конкретные задачи, поручения или следующие шаги.
+    5. sentiment: Общая эмоциональная окраска (например: "Позитивная", "Деловая", "Напряженная").
   `;
 
   try {
@@ -64,8 +66,6 @@ export const performDeepAnalysis = async (transcription: string): Promise<Omit<B
       model,
       contents: analysisPrompt,
       config: {
-        // Thinking config помогает для сложного анализа, но требует времени.
-        // Бюджет токенов для размышления.
         thinkingConfig: { thinkingBudget: 2048 },
         responseMimeType: "application/json",
         responseSchema: {
@@ -84,7 +84,7 @@ export const performDeepAnalysis = async (transcription: string): Promise<Omit<B
 
     const parsed = JSON.parse(response.text || "{}");
     return {
-      summary: parsed.summary || "Нет данных",
+      summary: parsed.summary || "Не удалось сформировать резюме.",
       mainThemes: parsed.mainThemes || [],
       keyPoints: parsed.keyPoints || [],
       actionItems: parsed.actionItems || [],
