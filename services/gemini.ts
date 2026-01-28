@@ -6,7 +6,7 @@ import { BriefingResult } from "../types";
  */
 export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const model = 'gemini-3-flash-preview';
+  const model = 'gemini-2.0-flash';
   
   try {
     const response = await ai.models.generateContent({
@@ -42,8 +42,7 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
  */
 export const performDeepAnalysis = async (transcription: string): Promise<Omit<BriefingResult, 'transcription'>> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  // Используем Pro модель для сложного анализа
-  const model = 'gemini-3-pro-preview';
+  const model = 'gemini-2.0-flash';
 
   const analysisPrompt = `
     Проанализируй следующий текст транскрипции и подготовь профессиональный отчет.
@@ -66,7 +65,6 @@ export const performDeepAnalysis = async (transcription: string): Promise<Omit<B
       model,
       contents: analysisPrompt,
       config: {
-        thinkingConfig: { thinkingBudget: 2048 },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
