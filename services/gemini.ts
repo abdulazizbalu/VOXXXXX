@@ -2,36 +2,34 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { BriefingResult } from "../types";
 
 /**
- * Транскрибация аудио
+ * Транскрибация аудио через Gemini (модель gemini-3-flash-preview)
  */
 export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  // Используем Flash для быстрой транскрибации
-  const model = 'gemini-3-flash-preview';
-  
+
   try {
     const response = await ai.models.generateContent({
-      model,
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
-          { inlineData: { data: base64Audio, mimeType } },
-          { text: `
-            Ты — профессиональный стенографист. Твоя задача — транскрибировать аудиофайл в текст на русском языке.
-            
-            ВАЖНЫЕ ИНСТРУКЦИИ:
-            1. Верни ТОЛЬКО текст транскрипции.
-            2. Разделяй реплики спикеров новой строкой. Если возможно, указывай "Спикер 1:", "Спикер 2:".
-            3. Игнорируй фоновые шумы и неречевые звуки.
-          ` }
-        ]
-      }
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: base64Audio,
+            },
+          },
+          {
+            text: "Transcribe this audio file into text. Return only the transcription text without any additional comments.",
+          },
+        ],
+      },
     });
 
     if (!response.text) {
-      throw new Error("Пустой ответ от модели (возможно, аудио слишком короткое или тихое).");
+      throw new Error("Пустой ответ от модели.");
     }
-
     return response.text;
+
   } catch (error: any) {
     console.error("Transcription Error:", error);
     throw new Error(`Ошибка транскрибации: ${error.message}`);
@@ -39,54 +37,70 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
 };
 
 /**
- * Глубокий анализ текста (Резюме, Темы, Выводы, Задачи)
+ * Глубокий анализ текста через Gemini (модель gemini-3-pro-preview)
  */
 export const performDeepAnalysis = async (transcription: string): Promise<Omit<BriefingResult, 'transcription'>> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
-  // ИЗМЕНЕНИЕ: Используем Flash модель вместо Pro.
-  // Pro модель имеет очень низкие лимиты (RPM) на бесплатном тарифе, что вызывает ошибку 429.
-  // Flash модель быстрая, качественная и имеет высокие лимиты.
-  const model = 'gemini-3-flash-preview';
 
-  const analysisPrompt = `
-    Проанализируй следующий текст транскрипции и подготовь профессиональный отчет.
-    
-    Текст для анализа:
+  const model = 'gemini-3-pro-preview';
+
+  const systemInstruction = `
+    Ты — профессиональный бизнес-аналитик. Твоя задача — проанализировать текст встречи и выдать структурированный JSON.
+  `;
+
+  const prompt = `
+    Проанализируй следующий текст:
     """
-    ${transcription.substring(0, 50000)} 
+    ${transcription}
     """
-    
-    Требования к отчету (JSON):
-    1. summary: Краткое, емкое резюме сути разговора (3-4 предложения).
-    2. mainThemes: Список из 3-6 основных тем или тегов.
-    3. keyPoints: 3-7 ключевых фактов, инсайтов или важных моментов.
-    4. actionItems: Конкретные задачи, поручения или следующие шаги.
-    5. sentiment: Общая эмоциональная окраска (например: "Позитивная", "Деловая", "Напряженная").
   `;
 
   try {
     const response = await ai.models.generateContent({
-      model,
-      contents: analysisPrompt,
+      model: model,
+      contents: prompt,
       config: {
-        // Удаляем thinkingConfig для ускорения ответа и снижения нагрузки на квоты
+        systemInstruction: systemInstruction,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            summary: { type: Type.STRING },
-            mainThemes: { type: Type.ARRAY, items: { type: Type.STRING } },
-            keyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-            actionItems: { type: Type.ARRAY, items: { type: Type.STRING } },
-            sentiment: { type: Type.STRING }
+            summary: {
+              type: Type.STRING,
+              description: "Краткое резюме (3-4 предложения).",
+            },
+            mainThemes: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: "Список основных тем (3-5 тем).",
+            },
+            keyPoints: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: "Ключевые факты и инсайты (3-7 пунктов).",
+            },
+            actionItems: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: "Конкретные задачи и следующие шаги.",
+            },
+            sentiment: {
+              type: Type.STRING,
+              description: "Тональность разговора (например: 'Позитивная', 'Напряженная').",
+            },
           },
-          required: ["summary", "mainThemes", "keyPoints", "actionItems", "sentiment"]
-        }
-      }
+          required: ["summary", "mainThemes", "keyPoints", "actionItems", "sentiment"],
+        },
+      },
     });
 
-    const parsed = JSON.parse(response.text || "{}");
+    const text = response.text;
+    if (!text) {
+        throw new Error("Пустой ответ от модели.");
+    }
+
+    const parsed = JSON.parse(text);
+
     return {
       summary: parsed.summary || "Не удалось сформировать резюме.",
       mainThemes: parsed.mainThemes || [],
@@ -96,6 +110,7 @@ export const performDeepAnalysis = async (transcription: string): Promise<Omit<B
       emotions: [],
       emotionsData: []
     };
+
   } catch (error: any) {
      console.error("Analysis Error:", error);
      throw new Error(`Ошибка анализа: ${error.message}`);
