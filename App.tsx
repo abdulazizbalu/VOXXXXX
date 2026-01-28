@@ -37,7 +37,7 @@ const App: React.FC = () => {
       console.error(err);
       let errorMsg = 'Произошла ошибка.';
       if (err.message) {
-        if (err.message.includes('API_KEY')) errorMsg = 'Не настроен API ключ. Проверьте настройки GEMINI_API_KEY в Cloudflare.';
+        if (err.message.includes('API_KEY') || err.message.includes('API ключ')) errorMsg = 'Не настроен API ключ. Добавьте GROQ_API_KEY в Cloudflare Pages → Settings → Environment Variables.';
         else if (err.message.includes('400')) errorMsg = 'Ошибка запроса (возможно, контент слишком большой).';
         else if (err.message.includes('429')) errorMsg = 'Слишком много запросов. Попробуйте позже.';
         else errorMsg = err.message;
