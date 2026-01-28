@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, Upload, Square, FileAudio } from 'lucide-react';
+import { Mic, Square, FileAudio } from 'lucide-react';
 import { blobToBase64 } from '../utils/audio';
 
 interface AudioInputProps {
